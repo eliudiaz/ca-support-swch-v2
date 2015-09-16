@@ -6,6 +6,8 @@
 package com.renap.pub.web;
 
 import com.renap.pub.infrastructure.dto.SwitchResponse;
+import com.renap.service.SwitchAPIService;
+import javax.ejb.EJB;
 import javax.ws.rs.Consumes;
 import javax.ws.rs.DefaultValue;
 import javax.ws.rs.GET;
@@ -29,27 +31,30 @@ import javax.ws.rs.core.UriInfo;
  * @author edcracken
  */
 @Path("/v2/eservicios")
-public class ControllerSwitchAPI {
+public class SwitchAPIController {
+
+    @EJB
+    SwitchAPIService service;
 
     /**
      * utilizar para servicios del switch que requieran el procesamiento de
      * informacion confidencial que se va almacenar o actualizar a la existente,
      * por esa razon no tiene parametro de transformacion de salida (output)
      *
-     * @param serviceId
-     * @param userId
+     * @param serviceUri
+     * @param componentUri
      * @param params
      * @return
      */
     @PUT
     @POST
-    @Path(value = "/{service_id}/{user_id}")
+    @Path(value = "/{service_uri}/{component_uri}")
     @Consumes({MediaType.APPLICATION_FORM_URLENCODED})
     @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
-    public Response get(@PathParam(value = "service_id") String serviceId, @PathParam(value = "user_id") String userId,
+    public Response get(@PathParam(value = "service_id") String serviceUri, @PathParam(value = "component_uri") String componentUri,
             MultivaluedMap<String, String> params) {
 
-        return processRequest(serviceId, userId, params, null);
+        return processRequest(serviceUri, componentUri, params, null);
     }
 
     /**
@@ -57,20 +62,20 @@ public class ControllerSwitchAPI {
      * formato JSON/XML
      *
      * @param serviceId
-     * @param userId
+     * @param componentUri
      * @param uriInfo
      * @param output
      * @return
      */
     @GET
-    @Path(value = "/{service_id}/{user_id}")
+    @Path(value = "/{service_uri}/{component_uri}")
     @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
-    public Response post(@PathParam(value = "service_id") String serviceId, @PathParam(value = "user_id") String userId,
+    public Response post(@PathParam(value = "service_id") String serviceId, @PathParam(value = "component_uri") String componentUri,
             @Context UriInfo uriInfo,
             @DefaultValue(value = "json") @QueryParam(value = "output") String output) {
 
         MultivaluedMap<String, String> pathParameters = uriInfo.getPathParameters(true);
-        return processRequest(serviceId, userId, pathParameters, output);
+        return processRequest(serviceId, componentUri, pathParameters, output);
     }
 
     /**
@@ -91,9 +96,9 @@ public class ControllerSwitchAPI {
     }
 
     @GET
-    @Path(value = "/media-resources/{service_id}/{user_id}")
+    @Path(value = "/media-resources/{service_id}/{component_uri}")
     @Produces({MediaType.APPLICATION_OCTET_STREAM})
-    public Response media(@PathParam(value = "service_id") String serviceId, @PathParam(value = "user_id") String userId,
+    public Response media(@PathParam(value = "service_id") String serviceId, @PathParam(value = "component_uri") String component_uri,
             @DefaultValue(value = "json") @QueryParam(value = "output") String output) {
         byte[] file = new byte[100];
         Response.ResponseBuilder ok = Response.ok(file, MediaType.APPLICATION_OCTET_STREAM);
