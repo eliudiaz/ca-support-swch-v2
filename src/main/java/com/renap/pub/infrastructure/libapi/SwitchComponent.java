@@ -26,11 +26,12 @@ public interface SwitchComponent {
      * Si el recurso a consumir requiere inicializacion se envian los valores
      * descritos
      *
-     * @param entity
-     * @param serviceId
+     * @param configUri configuracion que se ejecutara dentro del componente
+     * @param entity entidad que invoca el componente
+     * @param serviceId servicio en base de datos 
      * @throws com.renap.pub.infrastructure.libapi.exception.InitializeException
      */
-    public abstract void init(Integer entity, Integer serviceId) throws InitializeException;
+    public abstract void init(String configUri, Integer entity, Integer serviceId) throws InitializeException;
 
     /**
      * invocacion remota realizada por el switch

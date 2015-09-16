@@ -5,8 +5,26 @@
  */
 package com.renap.pub.web;
 
+import com.renap.domain.SwchServicio;
+import com.renap.infrastructure.exception.CompConfigURIAccessNotAllowed;
+import com.renap.infrastructure.exception.InsecureParameterException;
+import com.renap.infrastructure.exception.JNDIComponentURINotExistsException;
+import com.renap.infrastructure.exception.NoBalanceException;
+import com.renap.infrastructure.exception.ServiceCompURINotExists;
+import com.renap.infrastructure.exception.ServiceURINotExistsException;
 import com.renap.pub.infrastructure.dto.SwitchResponse;
+import com.renap.pub.infrastructure.libapi.ComponentParam;
+import com.renap.pub.infrastructure.libapi.ComponentResponse;
+import com.renap.pub.infrastructure.libapi.SwitchComponent;
+import com.renap.pub.infrastructure.libapi.exception.InitializeException;
+import com.renap.pub.infrastructure.libapi.exception.InvokeException;
+import com.renap.service.NoParametersInRequestException;
 import com.renap.service.SwitchAPIService;
+import com.renap.service.SwitchJNDILocatorService;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import javax.ejb.EJB;
 import javax.ws.rs.Consumes;
 import javax.ws.rs.DefaultValue;
@@ -34,7 +52,9 @@ import javax.ws.rs.core.UriInfo;
 public class SwitchAPIController {
 
     @EJB
-    SwitchAPIService service;
+    SwitchAPIService apiService;
+    @EJB
+    SwitchJNDILocatorService jNDILocatorService;
 
     /**
      * utilizar para servicios del switch que requieran el procesamiento de
@@ -61,7 +81,7 @@ public class SwitchAPIController {
      * Utilizar para servicios del switch que solo extraigan informacion en
      * formato JSON/XML
      *
-     * @param serviceId
+     * @param serviceUri
      * @param componentUri
      * @param uriInfo
      * @param output
@@ -70,29 +90,53 @@ public class SwitchAPIController {
     @GET
     @Path(value = "/{service_uri}/{component_uri}")
     @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
-    public Response post(@PathParam(value = "service_id") String serviceId, @PathParam(value = "component_uri") String componentUri,
+    public Response post(@PathParam(value = "service_id") String serviceUri, @PathParam(value = "component_uri") String componentUri,
             @Context UriInfo uriInfo,
             @DefaultValue(value = "json") @QueryParam(value = "output") String output) {
 
         MultivaluedMap<String, String> pathParameters = uriInfo.getPathParameters(true);
-        return processRequest(serviceId, componentUri, pathParameters, output);
+        return processRequest(serviceUri, componentUri, pathParameters, output);
     }
 
     /**
      * proceso generico para procesamiento
      *
-     * @param serviceId id del servicio solicitado (service_name)
-     * @param userId id del usuario (user_name) que solicita inforamcion (hay
-     * uno o mas por entidad)
+     * @param serviceUri uri del servicio solicitado (service_name)
+     * @param compConfigUri uri de configuracion de componenete uno o mas por
+     * entidad)
      * @param params Parametros enviados mediante <code>URI</code>
      * @param output <strong>parametro opcional</strong>
      * @return
      */
-    private Response processRequest(String serviceId, String userId,
+    private Response processRequest(String serviceUri, String compConfigUri,
             MultivaluedMap<String, String> params, String output) {
-        SwitchResponse sRes = new SwitchResponse();
-//return Response.status(Response.Status.BAD_REQUEST).entity(sRes);  //parametros ivalidos {reason:'invalid_parameters',description:'parametro x requerido'}
-        return Response.ok(sRes).build();
+        try {
+            SwitchResponse sRes = new SwitchResponse();
+            SwchServicio service = apiService.getServicioByURI(serviceUri);
+            String lcCompConfigURI = apiService.validateServiceRequest(service, compConfigUri);
+            SwitchComponent jndiComponent = jNDILocatorService.findComponentByURI(service.getComponente().getJndiUri());
+            List<ComponentParam> lcParams = new LinkedList<>();
+            boolean pagado = false;
+
+            apiService.verificarParametros(service, params);
+
+            if (!service.isSinPagoAutomatico()) {
+                apiService.registrarConsumo(service.getId(), service.getEntidad().getId());
+                pagado = true;
+            }
+            jndiComponent.init(lcCompConfigURI, service.getEntidad().getId(), service.getId());
+            ComponentResponse response = jndiComponent.remoteInvoke(lcParams, service.isSinCache(), pagado);
+            sRes.setContent(response.getReponse());
+
+            return Response.ok(sRes, output).build();
+        } catch (ServiceURINotExistsException | JNDIComponentURINotExistsException |
+                InitializeException | InvokeException | ServiceCompURINotExists |
+                CompConfigURIAccessNotAllowed | NoBalanceException |
+                InsecureParameterException | NoParametersInRequestException ex) {
+            // devolver un http error en base al exception Response.serverError().status(Response.Status.BAD_REQUEST)
+            Logger.getLogger(SwitchAPIController.class.getName()).log(Level.SEVERE, null, ex);
+        }
+        return null;
     }
 
     @GET
